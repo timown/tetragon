@@ -27,6 +27,7 @@ import (
 	"github.com/cilium/tetragon/pkg/kernels"
 	"github.com/cilium/tetragon/pkg/mbset"
 	"github.com/cilium/tetragon/pkg/option"
+	"github.com/cilium/tetragon/pkg/policyfilter"
 	"github.com/cilium/tetragon/pkg/reader/namespace"
 	"github.com/cilium/tetragon/pkg/reader/network"
 )
@@ -1260,6 +1261,31 @@ func ParseMatchAction(k *KernelSelectorState, action *v1alpha1.ActionSelector, a
 	return nil
 }
 
+func ParseMatchWorkloads(k *KernelSelectorState, workloads []v1alpha1.WorkloadsSelector, selIdx int) error {
+	if len(workloads) > 1 {
+		return errors.New("only a single selector under matchWorkloads is supported")
+	}
+	if len(workloads) == 0 {
+		return nil
+	}
+
+	state, err := policyfilter.GetState()
+	if err != nil {
+		return fmt.Errorf("parseMatchWorkloads: failed to get policyfilter state: %w", err)
+	}
+
+	workload := workloads[0]
+	selPolId := policyfilter.GetSelectorPolicyID()
+	err = state.AddPolicy(selPolId, "", workload.PodSelector, workload.ContainerSelector, workload.HostSelector)
+	if err != nil {
+		return fmt.Errorf("parseMatchWorkloads: failed to add policy: %w", err)
+	}
+
+	k.matchWorkloadIDs[selIdx] = selPolId
+
+	return nil
+}
+
 func ParseMatchActions(k *KernelSelectorState, actions []v1alpha1.ActionSelector, actionArgTable *idtable.Table) error {
 	if len(actions) > 3 {
 		return fmt.Errorf("only %d actions are support for selector (current number of values is %d)", 3, len(actions))
@@ -1692,6 +1718,9 @@ func InitKernelSelectorState(args *KernelSelectorArgs) (*KernelSelectorState, er
 		if err := ParseMatchArgs(k, selector.MatchArgs, selector.MatchData, args.Args, args.Data); err != nil {
 			return fmt.Errorf("parseMatchArgs  error: %w", err)
 		}
+		if err := ParseMatchWorkloads(k, selector.MatchWorkloads, selIdx); err != nil {
+			return fmt.Errorf("parseMatchWorkloads  error: %w", err)
+		}
 		if err := ParseMatchActions(k, selector.MatchActions, args.ActionArgTable); err != nil {
 			return fmt.Errorf("parseMatchActions error: %w", err)
 		}
@@ -1726,6 +1755,19 @@ func CleanupKernelSelectorState(state *KernelSelectorState) error {
 			errs = errors.Join(errs, err)
 		}
 	}
+
+	s, err := policyfilter.GetState()
+	if err != nil {
+		errs = errors.Join(errs, err)
+		return errs
+	}
+
+	for _, polID := range state.MatchWorkloadIDs() {
+		if err := s.DelPolicy(polID); err != nil {
+			errs = errors.Join(errs, err)
+		}
+	}
+
 	return errs
 }
 
