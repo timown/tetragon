@@ -21,6 +21,7 @@ Each selector comprises a set of filters:
 - [`matchCapabilities`](#capabilities-filter): filter on Linux capabilities.
 - [`matchNamespaceChanges`](#namespace-changes-filter): filter on Linux namespaces changes.
 - [`matchCapabilityChanges`](#capability-changes-filter): filter on Linux capabilities changes.
+- [`matchWorkloads`](#workloads-filter): filter on Kubernetes workloads.
 
 And a set of actions that will be performed if the specified filters match:
 - [`matchActions`](#actions-filter): apply an action on selector matching.
@@ -717,6 +718,34 @@ matchCapabilityChanges:
 
 See a [demonstration example](https://github.com/cilium/tetragon/blob/main/examples/tracingpolicy/fd_install_cap_changes.yaml)
 of this feature.
+
+## Workloads filter
+
+Workloads filter can be specified under the `matchWorkloads` field and provide
+filtering based on Kubernetes workloads. Inside `matchWorkloads` the user can
+define a `hostSelector`, a `podSelector`, and a `containerSelector`.
+
+This works in a similar way to global workload selectors such as `spec.hostSelector`,
+`spec.podSelector`, and `spec.containerSelector`. More details for each of them
+can be found in [Host workload filters](https://tetragon.io/docs/concepts/tracing-policy/k8s-filtering/#host-workload-filters),
+[Pod label filters](https://tetragon.io/docs/concepts/tracing-policy/k8s-filtering/#pod-label-filters),
+and [Container field filters](https://tetragon.io/docs/concepts/tracing-policy/k8s-filtering/#container-field-filters).
+
+Loading a tracing policy with `matchWorkloads` outside of Kubernetes will fail
+in a similar way to global workload selectors.
+
+The following match host workloads and pods inside `kube-system` namespace:
+
+```yaml
+matchWorkloads:
+- hostSelector: {}
+  podSelector:
+    matchExpressions:
+    - key: "k8s:io.kubernetes.pod.namespace"
+      operator: In
+      values:
+      - "kube-system"
+```
 
 ## Actions filter
 
