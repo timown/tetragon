@@ -6321,5 +6321,8 @@ spec:
         - metadata
         - spec
         type: object
+        x-kubernetes-validations:
+        - message: 'TracingPolicyNamespaced policies require spec.hostSelector: null'
+          rule: self.spec.hostSelector == null
     served: true
     storage: true

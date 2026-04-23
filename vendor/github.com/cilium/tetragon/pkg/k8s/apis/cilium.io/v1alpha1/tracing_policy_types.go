@@ -50,6 +50,7 @@ type TracingPolicy struct {
 // +genclient:noStatus
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:categories={tetragon},singular="tracingpolicynamespaced",path="tracingpoliciesnamespaced",scope="Namespaced",shortName={tgtpn}
+// +kubebuilder:validation:XValidation:rule="self.spec.hostSelector == null",message="TracingPolicyNamespaced policies require spec.hostSelector: null"
 type TracingPolicyNamespaced struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
