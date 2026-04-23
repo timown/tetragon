@@ -9,6 +9,7 @@ import (
 	"errors"
 
 	slimv1 "github.com/cilium/tetragon/pkg/k8s/slim/k8s/apis/meta/v1"
+	"github.com/cilium/tetragon/pkg/logger"
 	"github.com/cilium/tetragon/pkg/policyfilter"
 	"github.com/cilium/tetragon/pkg/tracingpolicy"
 )
@@ -22,6 +23,12 @@ import (
 //	policyfilter.PolicyID(tpID), nil if filtering is needed and policyfilter has been successfully set up
 //	_, err if an error occurred
 func (h *handler) updatePolicyFilter(tp tracingpolicy.TracingPolicy, tpID uint64) (policyfilter.PolicyID, error) {
+	hostSelector := tp.TpSpec().HostSelector
+	if tp.TpNamespace() != "" && tp.TpSpec().HostSelector != nil {
+		logger.GetLogger().Warn("TracingPolicyNamespaced cannot match host workloads. Explicitly set `spec.hostSelector: null` to remove this warning. Overrided spec.hostSelector with null before applying this policy.")
+		hostSelector = nil
+	}
+
 	// matches nothing           | tp.TpSpec().PodSelector == nil
 	// matches everything        | tp.TpSpec().PodSelector != nil && (len(ps.MatchLabels) + len(ps.MatchExpressions) == 0)
 	// matches based on selector | tp.TpSpec().PodSelector != nil && (len(ps.MatchLabels) + len(ps.MatchExpressions) != 0)
@@ -35,7 +42,6 @@ func (h *handler) updatePolicyFilter(tp tracingpolicy.TracingPolicy, tpID uint64
 	// matches nothing           | tp.TpSpec().HostSelector == nil
 	// matches everything        | tp.TpSpec().HostSelector != nil && (len(ps.MatchLabels) + len(ps.MatchExpressions) == 0)
 	// matches based on selector | Not supported yet
-	hostSelector := tp.TpSpec().HostSelector
 	if hostSelector != nil && (len(hostSelector.MatchLabels)+len(hostSelector.MatchExpressions) > 0) {
 		return policyfilter.NoFilterID, errors.New("spec.hostSelector does not support arbitrary labels. Only ~ (empty) and {} (all) is supported for now")
 	}
