@@ -320,9 +320,8 @@ func processMembers(
 	i int,
 ) (*btf.Type, error) {
 	var lastError *resolveError
-	memberWasFound := false
 	for _, member := range members {
-		if len(member.Name) == 0 { // If anonymous struct, fallthrough
+		if len(member.Name) == 0 { // anonymous struct/union, fallthrough
 			btfArgs[i].Offset = member.Offset.Bytes()
 			btfArgs[i].IsInitialized = uint16(1)
 			lastTy, err := ResolveBTFPath(btfArgs, member.Type, pathToFound, i)
@@ -341,36 +340,32 @@ func processMembers(
 			}
 			return lastTy, nil
 		}
-		if member.Name == pathToFound[i] {
-			memberWasFound = true
-			btfArgs[i].Offset = member.Offset.Bytes()
-			btfArgs[i].IsInitialized = uint16(1)
-			isNotLastChild := i < len(pathToFound)-1 && i < api.MaxBTFArgDepth
-			if isNotLastChild {
-				return ResolveBTFPath(btfArgs, member.Type, pathToFound, i+1)
-			}
-			currentType = ResolveNestedTypes(member.Type)
-			break
+		if member.Name != pathToFound[i] {
+			continue
 		}
-	}
-	if !memberWasFound {
-		if lastError != nil {
-			return nil, lastError
+		btfArgs[i].Offset = member.Offset.Bytes()
+		btfArgs[i].IsInitialized = uint16(1)
+		if i < len(pathToFound)-1 && i < api.MaxBTFArgDepth {
+			return ResolveBTFPath(btfArgs, member.Type, pathToFound, i+1)
 		}
-		return nil, &resolveError{i, fmt.Sprintf(
-			"attribute %q not found in structure %q found %v",
-			pathToFound[i],
-			currentType.TypeName(),
-			members,
-		)}
+		memberType := ResolveNestedTypes(member.Type)
+		if t, ok := memberType.(*btf.Pointer); ok {
+			btfArgs[i].IsPointer = uint16(1)
+			memberType = t.Target
+		} else if _, ok := memberType.(*btf.Int); ok {
+			btfArgs[i].IsPointer = uint16(1)
+		}
+		return &memberType, nil
 	}
-	if t, ok := currentType.(*btf.Pointer); ok {
-		btfArgs[i].IsPointer = uint16(1)
-		currentType = t.Target
-	} else if _, ok := currentType.(*btf.Int); ok {
-		btfArgs[i].IsPointer = uint16(1)
+	if lastError != nil {
+		return nil, lastError
 	}
-	return &currentType, nil
+	return nil, &resolveError{i, fmt.Sprintf(
+		"attribute %q not found in structure %q found %v",
+		pathToFound[i],
+		currentType.TypeName(),
+		members,
+	)}
 }
 
 func processArray(
