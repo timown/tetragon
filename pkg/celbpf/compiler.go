@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/tetragon/pkg/k8s/apis/cilium.io/v1alpha1"
 	cgCommon "github.com/google/cel-go/common"
 	cgAst "github.com/google/cel-go/common/ast"
 	cgOperators "github.com/google/cel-go/common/operators"
@@ -24,11 +25,11 @@ type compiler struct {
 	ast         *cgAst.AST
 	src         cgCommon.Source
 	cg          *codeGenerator
-	args        []exprArg
+	args        []v1alpha1.KProbeArg
 	arg_indexes []uint32
 }
 
-func newCompiler(ast *cgAst.AST, src cgCommon.Source, args []exprArg, labelPrefix string) *compiler {
+func newCompiler(ast *cgAst.AST, src cgCommon.Source, args []v1alpha1.KProbeArg, labelPrefix string) *compiler {
 	return &compiler{
 		ast:  ast,
 		src:  src,
@@ -176,7 +177,7 @@ func (c *compiler) compileArg(argIdx int) error {
 		c.arg_indexes = append(c.arg_indexes, uint32(argIdx))
 	}
 
-	if err := c.cg.pushArg(arg.ty, argIdx, scratchRegs[0], scratchRegs[1]); err != nil {
+	if err := c.cg.pushArg(convertType(arg), argIdx, scratchRegs[0], scratchRegs[1]); err != nil {
 		return fmt.Errorf("invalid argument (arg%d): %w", argIdx, err)
 	}
 	return nil

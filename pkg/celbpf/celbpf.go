@@ -51,16 +51,7 @@ func Compile(celExpr string, sig []v1alpha1.KProbeArg, labelPrefix string) (asm.
 		return nil, nil, fmt.Errorf("failed to parse CEL expresion %q: %s", celExpr, errs.ToDisplayString())
 	}
 
-	eargs := make([]exprArg, 0, len(sig))
-	for i := range sig {
-		earg, err := newExprArg(sig, i)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to convert argument %d: %w", i, err)
-		}
-		eargs = append(eargs, earg)
-	}
-
-	checkerEnv, err := newCheckerEnv(eargs)
+	checkerEnv, err := newCheckerEnv(sig)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -70,7 +61,7 @@ func Compile(celExpr string, sig []v1alpha1.KProbeArg, labelPrefix string) (asm.
 		return nil, nil, fmt.Errorf("check failed on CEL expresion %q: %s", celExpr, errs.ToDisplayString())
 	}
 
-	compiler := newCompiler(ast, source, eargs, labelPrefix)
+	compiler := newCompiler(ast, source, sig, labelPrefix)
 	return compiler.compile()
 }
 
