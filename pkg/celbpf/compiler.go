@@ -167,7 +167,7 @@ func (c *compiler) compileCall(expr cgAst.Expr) error {
 }
 
 func (c *compiler) compileArg(argIdx int) error {
-	if argIdx >= len(c.args) {
+	if argIdx < 0 || argIdx >= len(c.args) {
 		return fmt.Errorf("invalid argument (arg%d): undefined", argIdx)
 	}
 
@@ -185,11 +185,11 @@ func (c *compiler) compileArg(argIdx int) error {
 
 func (c *compiler) compileIdent(s string) error {
 	if strings.HasPrefix(s, "arg") {
-		idx, err := strconv.Atoi(s[3:])
+		idx, err := strconv.ParseUint(s[3:], 10, 32)
 		if err != nil {
 			return fmt.Errorf("invalid argument (%s): %w", s, err)
 		}
-		return c.compileArg(idx)
+		return c.compileArg(int(idx))
 	}
 	return fmt.Errorf("BUG: ident %q unknown", s)
 }
