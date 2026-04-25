@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	gt "github.com/cilium/tetragon/pkg/generictypes"
+	"github.com/cilium/tetragon/pkg/k8s/apis/cilium.io/v1alpha1"
 
 	cgDecls "github.com/google/cel-go/common/decls"
 	cgOverloads "github.com/google/cel-go/common/overloads"
@@ -18,10 +19,11 @@ import (
 )
 
 var (
-	s64Ty = cgTypes.IntType
-	u64Ty = cgTypes.UintType
-	s32Ty = cgTypes.NewOpaqueType("s32")
-	u32Ty = cgTypes.NewOpaqueType("u32")
+	s64Ty         = cgTypes.IntType
+	u64Ty         = cgTypes.UintType
+	s32Ty         = cgTypes.NewOpaqueType("s32")
+	u32Ty         = cgTypes.NewOpaqueType("u32")
+	unsupportedTy = cgTypes.NewOpaqueType("unsupported")
 
 	addS32 = "add_s32"
 	addU32 = "add_u32"
@@ -74,8 +76,7 @@ func subOperatorFunctionOpts() []cgDecls.FunctionOpt {
 }
 
 type exprArg struct {
-	ty        *cgTypes.Type
-	argOffset int
+	ty *cgTypes.Type
 }
 
 func typeFromGenTy(genTy int) (*cgTypes.Type, error) {
@@ -95,13 +96,13 @@ func typeFromGenTy(genTy int) (*cgTypes.Type, error) {
 	return nil, fmt.Errorf("unhandled generic type: %d (%s)", genTy, gt.GenericTypeString(genTy))
 }
 
-func newExprArg(arg ExprArg) (exprArg, error) {
-	ty, err := typeFromGenTy(arg.GenTy)
+func newExprArg(args []v1alpha1.KProbeArg, conf_idx int) (exprArg, error) {
+	arg := args[conf_idx]
+	ty, err := typeFromGenTy(gt.GenericTypeFromString(arg.Type))
 	if err != nil {
-		return exprArg{}, err
+		ty = unsupportedTy
 	}
 	return exprArg{
-		ty:        ty,
-		argOffset: arg.ArgOffset,
+		ty: ty,
 	}, nil
 }

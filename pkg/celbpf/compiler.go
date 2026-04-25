@@ -8,6 +8,7 @@ package celbpf
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -20,10 +21,11 @@ import (
 )
 
 type compiler struct {
-	ast  *cgAst.AST
-	src  cgCommon.Source
-	cg   *codeGenerator
-	args []exprArg
+	ast         *cgAst.AST
+	src         cgCommon.Source
+	cg          *codeGenerator
+	args        []exprArg
+	arg_indexes []uint32
 }
 
 func newCompiler(ast *cgAst.AST, src cgCommon.Source, args []exprArg, labelPrefix string) *compiler {
@@ -169,7 +171,12 @@ func (c *compiler) compileArg(argIdx int) error {
 	}
 
 	arg := c.args[argIdx]
-	if err := c.cg.pushArg(arg.ty, arg.argOffset, scratchRegs[0], scratchRegs[1]); err != nil {
+
+	if !slices.Contains(c.arg_indexes, uint32(argIdx)) {
+		c.arg_indexes = append(c.arg_indexes, uint32(argIdx))
+	}
+
+	if err := c.cg.pushArg(arg.ty, argIdx, scratchRegs[0], scratchRegs[1]); err != nil {
 		return fmt.Errorf("invalid argument (arg%d): %w", argIdx, err)
 	}
 	return nil
@@ -209,16 +216,16 @@ func (c *compiler) compileExpr(expr cgAst.Expr) error {
 	return fmt.Errorf("unsupported CEL expr: %d (%+v)", expr.Kind(), expr)
 }
 
-func (c *compiler) compile() (asm.Instructions, error) {
+func (c *compiler) compile() (asm.Instructions, []uint32, error) {
 	expr := c.ast.Expr()
 	if cgAst.NavigateExpr(c.ast, expr).Type().Kind() != cgTypes.BoolKind {
-		return nil, errors.New("expecting CEL expression to return bool")
+		return nil, nil, errors.New("expecting CEL expression to return bool")
 	}
 	if err := c.compileExpr(expr); err != nil {
-		return nil, fmt.Errorf("failed to compile CEL expression: %w", err)
+		return nil, nil, fmt.Errorf("failed to compile CEL expression: %w", err)
 	}
 	c.cg.emitPopBool(asm.R0)
 	c.cg.emitRaw(asm.Return())
 
-	return c.cg.instructions(), nil
+	return c.cg.instructions(), c.arg_indexes, nil
 }
